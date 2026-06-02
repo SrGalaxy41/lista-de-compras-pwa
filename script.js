@@ -522,18 +522,26 @@ const setupEventListeners = () => {
     };
     document.getElementById('ocrAddBtn').onclick = confirmOcrAdd;
 
-    // Nav / Card 1 Actions
+    // Navigation (Bottom Bar & Card Actions)
+    const showList = () => {
+        document.getElementById('modalOverlay').classList.add('hidden');
+        document.getElementById('settingsModalOverlay').classList.add('hidden');
+        window.scrollTo({ top: document.getElementById('listSection').offsetTop - 20, behavior: 'smooth' });
+    };
+
+    document.getElementById('showListBtn').onclick = showList;
     document.getElementById('loadTemplateBtn').onclick = () => showModal('Modelos', 'templates');
     document.getElementById('historyBtn').onclick = () => showModal('Histórico', 'history');
     document.getElementById('sharePdfBtn').onclick = generatePDF;
     
-    document.getElementById('clearListBtn').onclick = () => {
+    const clearList = () => {
         if (confirm('Tem certeza que deseja limpar a lista atual?')) {
             state.activeList = [];
             saveState();
             renderList();
         }
     };
+    document.getElementById('clearListBtn').onclick = clearList;
 
     const clearBudgetBtn = document.getElementById('clearBudgetBtn');
     if (clearBudgetBtn) {
@@ -564,7 +572,12 @@ const setupEventListeners = () => {
             });
         }
     };
-    document.getElementById('backupBtn').onclick = backupToDrive;
+    document.getElementById('backupBtn').onclick = async () => {
+        await backupToDrive();
+        state.lastSync = new Date().toLocaleString();
+        saveState();
+        updateSettingsUI(true);
+    };
     document.getElementById('restoreBtn').onclick = restoreFromDrive;
 };
 

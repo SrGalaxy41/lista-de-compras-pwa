@@ -41,7 +41,7 @@
 <body class="bg-gray-200 text-gray-800 font-sans flex justify-center h-screen w-screen overflow-hidden">
     
     <!-- Mobile-First Container (Scrollable) -->
-    <div class="w-full max-w-md h-full bg-[#F0F4F8] shadow-2xl relative flex flex-col overflow-y-auto pb-24">
+    <div class="w-full max-w-md h-full bg-[#F0F4F8] shadow-2xl relative flex flex-col overflow-y-auto pb-20">
 
         <div class="p-4 flex flex-col gap-4">
             
@@ -69,22 +69,6 @@
                     <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total da Lista</div>
                     <div class="text-3xl font-bold leading-none text-gray-800">R$ <span id="totalDisplay">0.00</span></div>
                     <div id="remainingBalance" class="text-sm font-medium text-green-600 mt-2">Restante: R$ 0.00</div>
-                </div>
-
-                <!-- Secondary Actions Row -->
-                <div class="flex gap-2 pt-2 border-t border-gray-100 overflow-x-auto pb-1 hide-scrollbar">
-                    <button id="sharePdfBtn" class="flex-1 min-w-[80px] flex items-center justify-center gap-1 bg-gray-50 p-2 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg> PDF
-                    </button>
-                    <button id="historyBtn" class="flex-1 min-w-[80px] flex items-center justify-center gap-1 bg-gray-50 p-2 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Histórico
-                    </button>
-                    <button id="loadTemplateBtn" class="flex-1 min-w-[80px] flex items-center justify-center gap-1 bg-gray-50 p-2 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg> Modelos
-                    </button>
-                    <button id="clearListBtn" class="flex-1 min-w-[80px] flex items-center justify-center gap-1 bg-red-50 p-2 rounded-lg text-xs font-bold text-red-600 hover:bg-red-100 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> Limpar
-                    </button>
                 </div>
             </div>
 
@@ -143,13 +127,37 @@
         </div>
 
         <!-- FAB Scanner -->
-        <label for="scanInput" class="fixed bottom-6 right-6 bg-[#6A1B9A] text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all z-40 border-2 border-white">
+        <label for="scanInput" class="fixed bottom-20 right-6 bg-[#6A1B9A] text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all z-40 border-2 border-white">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 011.664.89l.812 1.22A2 2 0 0010.07 10H19a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
             <input type="file" id="scanInput" accept="image/*" capture="environment" class="hidden">
         </label>
+
+        <!-- Bottom Navigation -->
+        <nav class="fixed bottom-0 w-full max-w-md bg-white border-t border-gray-200 h-16 flex items-center justify-around pb-safe z-50 shadow-lg">
+            <button id="showListBtn" class="flex flex-col items-center justify-center w-full h-full text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                <span class="text-[10px] font-medium">Lista</span>
+            </button>
+            <button id="loadTemplateBtn" class="flex flex-col items-center justify-center w-full h-full text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                <span class="text-[10px] font-medium">Modelos</span>
+            </button>
+            <button id="historyBtn" class="flex flex-col items-center justify-center w-full h-full text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span class="text-[10px] font-medium">Histórico</span>
+            </button>
+            <button id="sharePdfBtn" class="flex flex-col items-center justify-center w-full h-full text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                <span class="text-[10px] font-medium">PDF</span>
+            </button>
+            <button id="clearListBtn" class="flex flex-col items-center justify-center w-full h-full text-red-400 hover:text-red-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                <span class="text-[10px] font-medium text-red-500">Limpar</span>
+            </button>
+        </nav>
 
         <!-- Modals -->
         <div id="modalOverlay" class="hidden absolute inset-0 bg-black/40 z-[100] flex items-end justify-center backdrop-blur-sm transition-opacity">
@@ -168,27 +176,29 @@
         <div id="settingsModalOverlay" class="hidden absolute inset-0 bg-black/40 z-[105] flex items-end justify-center backdrop-blur-sm transition-opacity">
             <div class="bg-white w-full rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
                 <div class="p-5 border-b flex justify-between items-center bg-white">
-                    <h2 class="font-bold text-xl text-gray-800">Sincronização Nuvem</h2>
+                    <h2 class="font-bold text-xl text-gray-800">Configurações</h2>
                     <button id="closeSettingsModal" class="p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
                     </button>
                 </div>
                 <div class="p-6 space-y-6 flex-grow bg-gray-50">
                     
+                    <!-- Section A: Logged Out -->
                     <div id="authLoginSection" class="text-center space-y-4">
-                        <p class="text-sm text-gray-600">Faça login com o Google para fazer backup da sua lista e catálogo na nuvem (Google Drive).</p>
+                        <p class="text-sm text-gray-600">Conecte sua conta Google para sincronizar seus dados entre dispositivos.</p>
                         <button id="googleLoginBtn" class="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 py-3 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-colors">
                             <svg class="w-5 h-5" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
                             Fazer Login com Google
                         </button>
                     </div>
 
+                    <!-- Section B: Logged In -->
                     <div id="authLoggedSection" class="hidden space-y-6">
                         <div class="flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-                            <img id="userAvatar" src="" alt="" class="w-12 h-12 rounded-full hidden bg-gray-200">
+                            <img id="userAvatar" src="" alt="" class="w-12 h-12 rounded-full bg-gray-200">
                             <div class="flex-1">
                                 <p id="userName" class="font-bold text-gray-800">Usuário</p>
-                                <p class="text-xs text-green-600 font-medium">✓ Conectado ao Drive</p>
+                                <p class="text-[10px] text-gray-400" id="lastBackupText">Último backup: Nunca</p>
                             </div>
                             <button id="googleLogoutBtn" class="text-xs text-red-500 font-bold hover:underline">Sair</button>
                         </div>
@@ -216,14 +226,14 @@
             </div>
             <div class="bg-black p-4 flex justify-between gap-4 pb-safe shrink-0">
                 <button id="cancelCropBtn" class="flex-1 py-3 bg-gray-800 text-white rounded-xl font-bold">Cancelar</button>
-                <button id="confirmCropBtn" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold">Cortar e Ler</button>
+                <button id="confirmCropBtn" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold">Confirmar</button>
             </div>
         </div>
 
         <!-- OCR: Progress UI -->
         <div id="ocrProgressOverlay" class="hidden absolute inset-0 bg-black/60 z-[130] flex items-center justify-center backdrop-blur-sm p-4">
             <div class="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl text-center space-y-4">
-                <h3 class="font-bold text-gray-800 text-lg">Lendo Etiqueta</h3>
+                <h3 class="font-bold text-gray-800 text-lg">Processando Leitura</h3>
                 <p class="text-sm text-gray-500" id="ocrStatusText">Analisando imagem...</p>
                 <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                     <div id="ocrProgressBar" class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
@@ -235,26 +245,24 @@
         <div id="ocrConfirmModal" class="hidden absolute inset-0 bg-black/40 z-[115] flex items-end justify-center backdrop-blur-sm transition-opacity">
             <div class="bg-white w-full rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
                 <div class="p-5 border-b bg-white flex justify-between items-center">
-                    <h2 class="font-bold text-xl text-gray-800">Confirmar Leitura</h2>
+                    <h2 class="font-bold text-xl text-gray-800">Validar Produto</h2>
                     <button id="closeOcrModalBtn" class="p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
                     </button>
                 </div>
                 <div class="p-5 space-y-6 overflow-y-auto bg-gray-50 flex-grow">
                     <div class="space-y-2">
-                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Produto Lido</label>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Nome</label>
                         <input type="text" id="ocrParsedName" class="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none font-medium text-gray-800 shadow-sm">
                     </div>
                     
                     <div class="space-y-3">
                         <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Selecione o Preço</label>
-                        <div id="ocrPriceOptions" class="grid grid-cols-2 gap-3">
-                            <!-- Dynamically filled with buttons -->
-                        </div>
+                        <div id="ocrPriceOptions" class="grid grid-cols-2 gap-3"></div>
                     </div>
 
                     <button id="ocrAddBtn" class="w-full bg-primary text-white py-3.5 rounded-xl font-bold shadow-md hover:bg-green-700 active:scale-[0.98] transition-all opacity-50 cursor-not-allowed" disabled>
-                        Adicionar à Lista
+                        Adicionar
                     </button>
                 </div>
             </div>
