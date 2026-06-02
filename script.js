@@ -13,6 +13,9 @@ let gisInited = false;
 let tokenClient;
 let googleAccessToken = null;
 
+let cropperInstance = null;
+let currentOcrSelectedPrice = null;
+
 window.gapiLoaded = () => {
     gapi.load('client', async () => {
         await gapi.client.init({
@@ -32,6 +35,7 @@ window.gisLoaded = () => {
                 throw (resp);
             }
             googleAccessToken = resp.access_token;
+            localStorage.setItem('googleLoggedIn', 'true');
             await fetchUserInfo();
             updateSettingsUI(true);
         },
@@ -201,6 +205,9 @@ const toastEl = document.getElementById('toast');
 
 // --- Initialization ---
 const init = () => {
+    if (localStorage.getItem('googleLoggedIn') === 'true') {
+        updateSettingsUI(true);
+    }
     renderList();
     updateBudgetDisplay();
     updateCatalogDatalist();
@@ -251,15 +258,20 @@ const preprocessImage = (img) => {
 
 const processCroppedImage = async () => {
     if (!cropperInstance) return;
+    
+    const canvas = cropperInstance.getCroppedCanvas();
+    const base64Image = canvas.toDataURL('image/jpeg');
+    
+    cropperInstance.destroy();
+    cropperInstance = null;
     document.getElementById('cropperOverlay').classList.add('hidden');
+    
     const progressOverlay = document.getElementById('ocrProgressOverlay');
     progressOverlay.classList.remove('hidden');
     document.getElementById('ocrProgressBar').style.width = '0%';
     document.getElementById('ocrStatusText').textContent = 'Iniciando leitura...';
 
     try {
-        const canvas = cropperInstance.getCroppedCanvas();
-        const base64Image = canvas.toDataURL('image/jpeg');
         if (!ocrWorker) await initOCR();
         const { data: { text } } = await ocrWorker.recognize(base64Image);
         progressOverlay.classList.add('hidden');
@@ -269,6 +281,46 @@ const processCroppedImage = async () => {
         progressOverlay.classList.add('hidden');
         showToast('❌ Erro na leitura');
     }
+};
+
+const parseOCRText = (text) => {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+    const priceRegex = /(?:R\$?\s*)?(\d+[,.]\d{2})/g;
+    let prices = [];
+    let match;
+    while ((match = priceRegex.exec(text)) !== null) {
+        prices.push(parseFloat(match[1].replace(',', '.')));
+    }
+    
+    const nameCandidate = lines.find(l => !/^\d+[,.]\d{2}$/.test(l) && !priceRegex.test(l)) || 'Produto';
+    
+    document.getElementById('ocrParsedName').value = nameCandidate.substring(0, 30);
+    const optionsEl = document.getElementById('ocrPriceOptions');
+    optionsEl.innerHTML = '';
+    
+    currentOcrSelectedPrice = null;
+    const addBtn = document.getElementById('ocrAddBtn');
+    addBtn.disabled = true;
+    addBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+    if (prices.length === 0) {
+        optionsEl.innerHTML = '<p class="text-xs text-gray-400 col-span-2 text-center">Nenhum preço detectado</p>';
+    } else {
+        [...new Set(prices)].forEach(price => {
+            const btn = document.createElement('button');
+            btn.className = 'ocr-price-btn p-3 bg-white border-2 border-gray-100 rounded-xl font-bold text-gray-700 hover:border-primary transition-all';
+            btn.textContent = `R$ ${price.toFixed(2)}`;
+            btn.onclick = () => {
+                currentOcrSelectedPrice = price;
+                document.querySelectorAll('.ocr-price-btn').forEach(b => b.classList.remove('border-primary', 'bg-green-50', 'text-primary'));
+                btn.classList.add('border-primary', 'bg-green-50', 'text-primary');
+                addBtn.disabled = false;
+                addBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            };
+            optionsEl.appendChild(btn);
+        });
+    }
+    document.getElementById('ocrConfirmModal').classList.remove('hidden');
 };
 
 const confirmOcrAdd = () => {
@@ -304,29 +356,25 @@ const generatePDF = async () => {
     else doc.save('lista.pdf');
 };
 
-const handleScan = async (e) => {
+const handleScan = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    showToast('⌛ Lendo etiqueta...');
-    try {
-        const img = new Image();
-        img.src = URL.createObjectURL(file);
-        await new Promise(r => img.onload = r);
-        const processed = preprocessImage(img);
-        if (!ocrWorker) await initOCR();
-        const { data: { text } } = await ocrWorker.recognize(processed);
-        
-        const priceRegex = /(?:R\$?\s*)?(\d+,\d{2})/i;
-        const priceMatch = text.match(priceRegex);
-        const price = priceMatch ? parseFloat(priceMatch[1].replace(',', '.')) : 0;
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3);
-        const name = lines.find(l => !priceRegex.test(l)) || '';
 
-        document.getElementById('itemName').value = name.substring(0, 30);
-        document.getElementById('itemPrice').value = price || '';
-        haptic();
-        showToast('✅ Capturado!');
-    } catch (err) { showToast('❌ Erro no Scanner'); }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const cropperImage = document.getElementById('cropperImage');
+        cropperImage.src = event.target.result;
+        document.getElementById('cropperOverlay').classList.remove('hidden');
+
+        if (cropperInstance) cropperInstance.destroy();
+        cropperInstance = new Cropper(cropperImage, {
+            viewMode: 1,
+            autoCropArea: 0.8,
+            responsive: true,
+            restore: false,
+        });
+    };
+    reader.readAsDataURL(file);
     e.target.value = '';
 };
 
@@ -567,9 +615,13 @@ const setupEventListeners = () => {
         if (googleAccessToken) {
             google.accounts.oauth2.revoke(googleAccessToken, () => {
                 googleAccessToken = null;
+                localStorage.removeItem('googleLoggedIn');
                 updateSettingsUI(false);
                 document.getElementById('userAvatar').classList.add('hidden');
             });
+        } else {
+            localStorage.removeItem('googleLoggedIn');
+            updateSettingsUI(false);
         }
     };
     document.getElementById('backupBtn').onclick = async () => {
