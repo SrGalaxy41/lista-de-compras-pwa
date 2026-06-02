@@ -36,6 +36,12 @@
         /* Hide scrollbar for the actions row */
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Cropper Mobile UX Improvements */
+        .cropper-point { width: 30px !important; height: 30px !important; background-color: #3b82f6 !important; opacity: 0.9 !important; border-radius: 50%; }
+        .cropper-point.point-se { right: -15px !important; bottom: -15px !important; }
+        .cropper-line { background-color: #3b82f6 !important; }
+        .cropper-view-box { outline: 2px solid #3b82f6 !important; outline-color: rgba(59, 130, 246, 0.7) !important; }
     </style>
 </head>
 <body class="bg-gray-200 text-gray-800 font-sans flex justify-center h-screen w-screen overflow-hidden">

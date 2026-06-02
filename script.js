@@ -72,6 +72,16 @@ const updateSettingsUI = (isLoggedIn, profile = null) => {
                 avatar.classList.remove('hidden');
             }
         }
+        
+        const lastBackup = localStorage.getItem('lastBackupDate');
+        if (lastBackup) {
+            const date = new Date(lastBackup);
+            const formatted = new Intl.DateTimeFormat('pt-BR', { 
+                dateStyle: 'short', 
+                timeStyle: 'short' 
+            }).format(date);
+            document.getElementById('lastBackupText').textContent = `Último backup: ${formatted.replace(',', ' às')}`;
+        }
     }
 };
 
@@ -280,10 +290,13 @@ async function getCameras() {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(d => d.kind === 'videoinput');
         
+        const preferredId = localStorage.getItem('preferredCameraId');
+        
         videoDevices.forEach((device, index) => {
             const option = document.createElement('option');
             option.value = device.deviceId;
             option.text = device.label || `Câmera ${index + 1}`;
+            if (device.deviceId === preferredId) option.selected = true;
             selector.appendChild(option);
         });
 
@@ -304,9 +317,11 @@ async function startCamera(deviceId = null) {
         currentStream.getTracks().forEach(track => track.stop());
     }
 
+    const effectiveDeviceId = deviceId || localStorage.getItem('preferredCameraId');
+
     const constraints = {
-        video: deviceId 
-            ? { deviceId: { exact: deviceId }, width: { ideal: 1280 } }
+        video: effectiveDeviceId 
+            ? { deviceId: { exact: effectiveDeviceId }, width: { ideal: 1280 } }
             : { facingMode: "environment", width: { ideal: 1280 } }
     };
 
@@ -315,13 +330,17 @@ async function startCamera(deviceId = null) {
         videoFeed.srcObject = currentStream;
         document.getElementById('cameraModal').classList.remove('hidden');
         
-        // Re-enumerate to get labels if they were empty
         const tracks = currentStream.getVideoTracks();
         if (tracks.length > 0 && !tracks[0].label) {
              await getCameras();
         }
     } catch (err) {
         console.error('Camera Error:', err);
+        // Fallback if the preferred camera fails
+        if (effectiveDeviceId) {
+            localStorage.removeItem('preferredCameraId');
+            return startCamera();
+        }
         showToast('❌ Erro ao acessar câmera');
     }
 }
@@ -566,10 +585,12 @@ const setupEventListeners = () => {
 
     startScanBtn.onclick = async () => {
         await getCameras();
-        await startCamera();
+        const preferredId = localStorage.getItem('preferredCameraId');
+        await startCamera(preferredId);
     };
 
     cameraSelector.onchange = (e) => {
+        localStorage.setItem('preferredCameraId', e.target.value);
         startCamera(e.target.value);
     };
 
@@ -593,9 +614,15 @@ const setupEventListeners = () => {
         if (cropperInstance) cropperInstance.destroy();
         cropperInstance = new Cropper(cropperImage, {
             viewMode: 1,
+            dragMode: 'move',
             autoCropArea: 0.8,
-            responsive: true,
             restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false
         });
     };
 
