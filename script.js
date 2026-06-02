@@ -4,6 +4,152 @@
 
 const { jsPDF } = window.jspdf || {};
 
+// --- Google Drive Cloud Sync ---
+const GOOGLE_CLIENT_ID = 'SEU_CLIENT_ID_AQUI';
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata profile email';
+
+let gapiInited = false;
+let gisInited = false;
+let tokenClient;
+let googleAccessToken = null;
+
+window.gapiLoaded = () => {
+    gapi.load('client', async () => {
+        await gapi.client.init({
+            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+        });
+        gapiInited = true;
+    });
+};
+
+window.gisLoaded = () => {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPES,
+        callback: async (resp) => {
+            if (resp.error !== undefined) {
+                showToast('❌ Erro no login');
+                throw (resp);
+            }
+            googleAccessToken = resp.access_token;
+            await fetchUserInfo();
+            updateSettingsUI(true);
+        },
+    });
+    gisInited = true;
+};
+
+const fetchUserInfo = async () => {
+    try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${googleAccessToken}` }
+        });
+        const data = await res.json();
+        document.getElementById('userName').textContent = data.name;
+        const avatar = document.getElementById('userAvatar');
+        if (data.picture) {
+            avatar.src = data.picture;
+            avatar.classList.remove('hidden');
+        }
+    } catch (err) {
+        console.error('Failed to fetch user info', err);
+    }
+};
+
+const updateSettingsUI = (isLoggedIn) => {
+    document.getElementById('authLoginSection').classList.toggle('hidden', isLoggedIn);
+    document.getElementById('authLoggedSection').classList.toggle('hidden', !isLoggedIn);
+};
+
+const findBackupFile = async () => {
+    const response = await gapi.client.drive.files.list({
+        spaces: 'appDataFolder',
+        q: "name='backup.json'",
+        fields: 'files(id)'
+    });
+    const files = response.result.files;
+    return files && files.length > 0 ? files[0].id : null;
+};
+
+const backupToDrive = async () => {
+    if (!googleAccessToken) return showToast('❌ Faça login primeiro!');
+    showToast('⌛ Fazendo backup na nuvem...');
+    
+    try {
+        const fileId = await findBackupFile();
+        
+        const backupData = JSON.stringify(state);
+        const metadata = {
+            name: 'backup.json',
+            mimeType: 'application/json'
+        };
+        if (!fileId) metadata.parents = ['appDataFolder'];
+
+        const boundary = '-------314159265358979323846';
+        const delimiter = "\r\n--" + boundary + "\r\n";
+        const close_delim = "\r\n--" + boundary + "--";
+
+        const multipartRequestBody =
+            delimiter +
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+            JSON.stringify(metadata) +
+            delimiter +
+            'Content-Type: application/json\r\n\r\n' +
+            backupData +
+            close_delim;
+
+        const url = fileId 
+            ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+            : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+
+        const res = await fetch(url, {
+            method: fileId ? 'PATCH' : 'POST',
+            headers: {
+                'Authorization': `Bearer ${googleAccessToken}`,
+                'Content-Type': `multipart/related; boundary=${boundary}`
+            },
+            body: multipartRequestBody
+        });
+
+        if (res.ok) {
+            showToast('✅ Backup concluído!');
+        } else {
+            throw new Error('Falha no upload');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('❌ Erro no backup');
+    }
+};
+
+const restoreFromDrive = async () => {
+    if (!googleAccessToken) return showToast('❌ Faça login primeiro!');
+    showToast('⌛ Restaurando da nuvem...');
+    
+    try {
+        const fileId = await findBackupFile();
+        if (!fileId) return showToast('❌ Nenhum backup encontrado');
+
+        const response = await gapi.client.drive.files.get({
+            fileId: fileId,
+            alt: 'media'
+        });
+
+        const cloudData = response.result;
+        if (cloudData) {
+            state = { ...state, ...cloudData };
+            saveState();
+            renderList();
+            updateBudgetDisplay();
+            updateCatalogDatalist();
+            showToast('✅ Dados restaurados!');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('❌ Erro ao restaurar');
+    }
+};
+
 // --- Catalog Seed ---
 const CATALOG_SEED = [
     { name: 'Arroz 5kg', category: 'Alimentação', price: 25.50 },
@@ -171,9 +317,23 @@ const removeItem = (id) => {
 const updateBudgetDisplay = () => {
     const total = state.activeList.reduce((acc, i) => acc + (i.qty * i.price), 0);
     totalDisplay.textContent = total.toFixed(2);
+    
+    // Update Item Count
+    const countEl = document.getElementById('itemCount');
+    if (countEl) countEl.textContent = state.activeList.length;
+
     const balance = state.budget - total;
     balanceDisplay.textContent = `Restante: R$ ${balance.toFixed(2)}`;
-    balanceDisplay.className = balance >= 0 ? 'text-green-200' : 'text-red-300 font-bold';
+    balanceDisplay.className = balance >= 0 ? 'text-sm font-medium text-green-600 mt-2' : 'text-sm font-bold text-red-600 mt-2';
+    
+    const alertEl = document.getElementById('budgetAlert');
+    if (alertEl) {
+        if (state.budget > 0 && balance < 0) {
+            alertEl.classList.remove('hidden');
+        } else {
+            alertEl.classList.add('hidden');
+        }
+    }
 };
 
 // --- UI Rendering ---
@@ -186,71 +346,51 @@ const renderList = () => {
 
     if (filtered.length === 0) {
         activeListEl.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-20 text-gray-400 space-y-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
-                <p class="text-lg">Sua lista está vazia.</p>
-                <p class="text-sm">Adicione o primeiro item acima.</p>
+            <div class="flex flex-col items-center justify-center py-10 text-gray-400 space-y-3">
+                <div class="bg-gray-50 p-4 rounded-full border border-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+                </div>
+                <p class="text-sm font-medium text-gray-500">Sua lista está vazia</p>
             </div>`;
         updateBudgetDisplay();
         return;
     }
 
     activeListEl.innerHTML = filtered.map(item => `
-        <div class="swipe-container bg-danger rounded-xl shadow-sm group" data-id="${item.id}">
-            <div class="swipe-content bg-white p-4 flex items-center gap-4 relative z-10" 
-                 ontouchstart="handleSwipeStart(event)" ontouchmove="handleSwipeMove(event)" ontouchend="handleSwipeEnd(event)">
+        <div class="bg-white border border-gray-100 rounded-xl p-3 flex items-center gap-3 shadow-sm transition-opacity ${item.checked ? 'opacity-60 bg-gray-50' : ''}" data-id="${item.id}">
+            
+            <!-- Checkbox -->
+            <input type="checkbox" class="check-item w-6 h-6 rounded-md border-gray-300 text-primary focus:ring-primary transition-colors shrink-0 cursor-pointer" 
+                ${item.checked ? 'checked' : ''}>
+            
+            <!-- Center Details -->
+            <div class="flex-grow min-w-0">
+                <h3 class="font-bold truncate text-gray-800 text-base ${item.checked ? 'item-checked text-gray-500' : ''}" 
+                    contenteditable="true" data-field="name">${item.name}</h3>
                 
-                <input type="checkbox" class="check-item w-6 h-6 rounded border-gray-300 text-primary focus:ring-primary" 
-                    ${item.checked ? 'checked' : ''}>
-                
-                <div class="flex-grow min-w-0">
-                    <h3 class="font-bold truncate text-gray-800 ${item.checked ? 'item-checked' : ''}" 
-                        contenteditable="true" data-field="name">${item.name}</h3>
-                    <div class="flex gap-2 text-xs text-gray-400">
-                        <span contenteditable="true" data-field="category">${item.category}</span> • 
-                        <span>Qtd: </span><span contenteditable="true" data-field="qty" class="font-bold text-gray-600">${item.qty}</span>
+                <div class="flex flex-wrap items-center gap-2 mt-1.5">
+                    <!-- Inline Qty -->
+                    <div class="flex items-center bg-gray-100 rounded border border-gray-200 overflow-hidden h-6">
+                        <button class="qty-btn px-2 text-gray-500 hover:bg-gray-200 font-bold" data-action="decrease">-</button>
+                        <span class="px-2 text-xs font-bold text-gray-700 w-6 text-center">${item.qty}</span>
+                        <button class="qty-btn px-2 text-gray-500 hover:bg-gray-200 font-bold" data-action="increase">+</button>
                     </div>
-                </div>
-
-                <div class="text-right shrink-0">
-                    <div class="font-bold text-primary">R$ ${(item.qty * item.price).toFixed(2)}</div>
-                    <div class="text-[10px] text-gray-400" contenteditable="true" data-field="price">un: R$ ${item.price.toFixed(2)}</div>
+                    
+                    <span class="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded text-[10px] font-medium border border-gray-200" contenteditable="true" data-field="price">R$ ${item.price.toFixed(2)}</span>
+                    <span class="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[10px] font-medium border border-green-100" contenteditable="true" data-field="category">${item.category}</span>
                 </div>
             </div>
-            <button class="absolute inset-y-0 right-0 w-20 bg-danger text-white flex items-center justify-center font-bold" onclick="removeItem(${item.id})">
-                Excluir
-            </button>
+
+            <!-- Right Actions -->
+            <div class="shrink-0 flex flex-col items-end gap-2">
+                <div class="font-bold text-gray-800 text-sm">R$ ${(item.qty * item.price).toFixed(2)}</div>
+                <button class="delete-btn text-gray-400 hover:text-red-500 transition-colors p-1" aria-label="Excluir item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
         </div>
     `).join('');
     updateBudgetDisplay();
-};
-
-// --- Gestures ---
-let touchStartX = 0;
-let currentSwipeId = null;
-
-window.handleSwipeStart = (e) => {
-    touchStartX = e.touches[0].clientX;
-    currentSwipeId = e.currentTarget.closest('.swipe-container').dataset.id;
-};
-
-window.handleSwipeMove = (e) => {
-    const touchX = e.touches[0].clientX;
-    const diff = touchX - touchStartX;
-    if (diff < 0) {
-        const offset = Math.max(diff, -80);
-        e.currentTarget.style.transform = `translateX(${offset}px)`;
-    }
-};
-
-window.handleSwipeEnd = (e) => {
-    const touchEndX = e.changedTouches[0].clientX;
-    const diff = touchEndX - touchStartX;
-    if (diff < -40) {
-        e.currentTarget.style.transform = `translateX(-80px)`;
-    } else {
-        e.currentTarget.style.transform = `translateX(0px)`;
-    }
 };
 
 // --- Event Listeners ---
@@ -285,36 +425,80 @@ const setupEventListeners = () => {
     };
 
     activeListEl.onclick = (e) => {
-        const chip = e.target.closest('.swipe-container');
+        const chip = e.target.closest('[data-id]');
         if (!chip) return;
         const id = parseInt(chip.dataset.id);
+        const item = state.activeList.find(i => i.id === id);
+
         if (e.target.classList.contains('check-item')) {
             updateItem(id, { checked: e.target.checked });
             haptic();
+        } else if (e.target.closest('.delete-btn')) {
+            removeItem(id);
+        } else if (e.target.closest('.qty-btn')) {
+            const action = e.target.dataset.action;
+            let newQty = item.qty;
+            if (action === 'increase') newQty++;
+            else if (action === 'decrease' && newQty > 1) newQty--;
+            if (newQty !== item.qty) updateItem(id, { qty: newQty });
         }
     };
 
     activeListEl.addEventListener('blur', (e) => {
         if (e.target.hasAttribute('contenteditable')) {
-            const id = parseInt(e.target.closest('.swipe-container').dataset.id);
+            const id = parseInt(e.target.closest('[data-id]').dataset.id);
             const field = e.target.dataset.field;
-            let val = e.target.innerText.replace('un: R$ ', '').trim();
+            let val = e.target.innerText.replace('R$ ', '').trim();
             const updates = {};
-            updates[field] = (field === 'qty' || field === 'price') ? parseFloat(val) : val;
+            updates[field] = (field === 'price') ? parseFloat(val) || 0 : val;
             updateItem(id, updates);
         }
     }, true);
 
-    // Nav
+    // Card 1 Actions
     document.getElementById('loadTemplateBtn').onclick = () => showModal('Modelos', 'templates');
     document.getElementById('historyBtn').onclick = () => showModal('Histórico', 'history');
-    document.getElementById('showListBtn').onclick = () => { 
-        document.getElementById('modalOverlay').classList.add('hidden');
-        renderList();
-    };
-    
     document.getElementById('sharePdfBtn').onclick = generatePDF;
+    
+    document.getElementById('clearListBtn').onclick = () => {
+        if (confirm('Tem certeza que deseja limpar a lista atual?')) {
+            state.activeList = [];
+            saveState();
+            renderList();
+        }
+    };
+
+    const clearBudgetBtn = document.getElementById('clearBudgetBtn');
+    if (clearBudgetBtn) {
+        clearBudgetBtn.onclick = () => {
+            budgetInput.value = '0.00';
+            state.budget = 0;
+            saveState();
+            updateBudgetDisplay();
+        };
+    }
+
     document.getElementById('closeModal').onclick = () => document.getElementById('modalOverlay').classList.add('hidden');
+
+    // Settings & Cloud Sync
+    document.getElementById('settingsBtn').onclick = () => document.getElementById('settingsModalOverlay').classList.remove('hidden');
+    document.getElementById('closeSettingsModal').onclick = () => document.getElementById('settingsModalOverlay').classList.add('hidden');
+    
+    document.getElementById('googleLoginBtn').onclick = () => {
+        if (googleAccessToken) { updateSettingsUI(true); return; }
+        tokenClient.requestAccessToken({prompt: 'consent'});
+    };
+    document.getElementById('googleLogoutBtn').onclick = () => {
+        if (googleAccessToken) {
+            google.accounts.oauth2.revoke(googleAccessToken, () => {
+                googleAccessToken = null;
+                updateSettingsUI(false);
+                document.getElementById('userAvatar').classList.add('hidden');
+            });
+        }
+    };
+    document.getElementById('backupBtn').onclick = backupToDrive;
+    document.getElementById('restoreBtn').onclick = restoreFromDrive;
 };
 
 const generatePDF = async () => {
