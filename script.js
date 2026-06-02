@@ -15,6 +15,7 @@ let googleAccessToken = null;
 
 let cropperInstance = null;
 let currentOcrSelectedPrice = null;
+let cameraStream = null;
 
 window.gapiLoaded = () => {
     gapi.load('client', async () => {
@@ -37,7 +38,6 @@ window.gisLoaded = () => {
             googleAccessToken = resp.access_token;
             localStorage.setItem('googleLoggedIn', 'true');
             await fetchUserInfo();
-            updateSettingsUI(true);
         },
     });
     gisInited = true;
@@ -49,26 +49,35 @@ const fetchUserInfo = async () => {
             headers: { Authorization: `Bearer ${googleAccessToken}` }
         });
         const data = await res.json();
-        document.getElementById('userName').textContent = data.name;
-        const avatar = document.getElementById('userAvatar');
-        if (data.picture) {
-            avatar.src = data.picture;
-            avatar.classList.remove('hidden');
-        }
+        const profile = { name: data.name, avatar: data.picture, email: data.email };
+        localStorage.setItem('userProfile', JSON.stringify(profile));
+        updateSettingsUI(true, profile);
     } catch (err) {
         console.error('Failed to fetch user info', err);
     }
 };
 
-const updateSettingsUI = (isLoggedIn) => {
+const updateSettingsUI = (isLoggedIn, profile = null) => {
     document.getElementById('authLoginSection').classList.toggle('hidden', isLoggedIn);
     document.getElementById('authLoggedSection').classList.toggle('hidden', !isLoggedIn);
+    
+    if (isLoggedIn) {
+        const data = profile || JSON.parse(localStorage.getItem('userProfile'));
+        if (data) {
+            document.getElementById('userName').textContent = data.name;
+            const avatar = document.getElementById('userAvatar');
+            if (data.avatar) {
+                avatar.src = data.avatar;
+                avatar.classList.remove('hidden');
+            }
+        }
+    }
 };
 
 const findBackupFile = async () => {
     const response = await gapi.client.drive.files.list({
         spaces: 'appDataFolder',
-        q: "name='backup.json'",
+        q: "name='comepouco_backup.json'",
         fields: 'files(id)'
     });
     const files = response.result.files;
@@ -81,10 +90,9 @@ const backupToDrive = async () => {
     
     try {
         const fileId = await findBackupFile();
-        
         const backupData = JSON.stringify(state);
         const metadata = {
-            name: 'backup.json',
+            name: 'comepouco_backup.json',
             mimeType: 'application/json'
         };
         if (!fileId) metadata.parents = ['appDataFolder'];
@@ -118,6 +126,8 @@ const backupToDrive = async () => {
         if (res.ok) {
             showToast('✅ Backup concluído!');
         } else {
+            const errorData = await res.json();
+            console.error('Drive API Error:', errorData);
             throw new Error('Falha no upload');
         }
     } catch (err) {
@@ -199,14 +209,14 @@ const balanceDisplay = document.getElementById('remainingBalance');
 const addItemForm = document.getElementById('addItemForm');
 const datalist = document.getElementById('catalogList');
 const searchInput = document.getElementById('searchInput');
-const scanInput = document.getElementById('scanInput');
 const ocrCanvas = document.getElementById('ocrCanvas');
 const toastEl = document.getElementById('toast');
 
 // --- Initialization ---
 const init = () => {
     if (localStorage.getItem('googleLoggedIn') === 'true') {
-        updateSettingsUI(true);
+        const profile = JSON.parse(localStorage.getItem('userProfile'));
+        updateSettingsUI(true, profile);
     }
     renderList();
     updateBudgetDisplay();
@@ -239,22 +249,6 @@ const updateCatalogDatalist = () => {
 };
 
 // --- Logic ---
-
-const preprocessImage = (img) => {
-    const ctx = ocrCanvas.getContext('2d');
-    ocrCanvas.width = img.width;
-    ocrCanvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-    const imageData = ctx.getImageData(0, 0, ocrCanvas.width, ocrCanvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        const val = avg > 128 ? 255 : 0;
-        data[i] = data[i + 1] = data[i + 2] = val;
-    }
-    ctx.putImageData(imageData, 0, 0);
-    return ocrCanvas.toDataURL();
-};
 
 const processCroppedImage = async () => {
     if (!cropperInstance) return;
@@ -354,28 +348,6 @@ const generatePDF = async () => {
     const file = new File([blob], 'lista.pdf', { type: 'application/pdf' });
     if (navigator.share) await navigator.share({ files: [file], title: 'Minha Lista' });
     else doc.save('lista.pdf');
-};
-
-const handleScan = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const cropperImage = document.getElementById('cropperImage');
-        cropperImage.src = event.target.result;
-        document.getElementById('cropperOverlay').classList.remove('hidden');
-
-        if (cropperInstance) cropperInstance.destroy();
-        cropperInstance = new Cropper(cropperImage, {
-            viewMode: 1,
-            autoCropArea: 0.8,
-            responsive: true,
-            restore: false,
-        });
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
 };
 
 const upsertCatalog = (item) => {
@@ -499,7 +471,60 @@ const renderList = () => {
 // --- Event Listeners ---
 const setupEventListeners = () => {
     searchInput.oninput = (e) => { state.filter = e.target.value; renderList(); };
-    scanInput.onchange = handleScan;
+
+    // Camera WebRTC logic
+    const startScanBtn = document.getElementById('startScanBtn');
+    const cameraModal = document.getElementById('cameraModal');
+    const videoFeed = document.getElementById('videoFeed');
+    const capturePhotoBtn = document.getElementById('capturePhotoBtn');
+    const cancelCameraBtn = document.getElementById('cancelCameraBtn');
+
+    const stopCamera = () => {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+        cameraModal.classList.add('hidden');
+    };
+
+    startScanBtn.onclick = async () => {
+        try {
+            cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: { ideal: 1280 } } 
+            });
+            videoFeed.srcObject = cameraStream;
+            cameraModal.classList.remove('hidden');
+        } catch (err) {
+            console.error('Camera Error:', err);
+            showToast('❌ Erro ao acessar câmera');
+        }
+    };
+
+    cancelCameraBtn.onclick = stopCamera;
+
+    capturePhotoBtn.onclick = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoFeed.videoWidth;
+        canvas.height = videoFeed.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoFeed, 0, 0);
+        
+        const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+        stopCamera();
+
+        // Open Cropper with captured photo
+        const cropperImage = document.getElementById('cropperImage');
+        cropperImage.src = dataURL;
+        document.getElementById('cropperOverlay').classList.remove('hidden');
+
+        if (cropperInstance) cropperInstance.destroy();
+        cropperInstance = new Cropper(cropperImage, {
+            viewMode: 1,
+            autoCropArea: 0.8,
+            responsive: true,
+            restore: false,
+        });
+    };
 
     budgetInput.value = state.budget.toFixed(2);
     budgetInput.onchange = (e) => { 
@@ -616,11 +641,13 @@ const setupEventListeners = () => {
             google.accounts.oauth2.revoke(googleAccessToken, () => {
                 googleAccessToken = null;
                 localStorage.removeItem('googleLoggedIn');
+                localStorage.removeItem('userProfile');
                 updateSettingsUI(false);
                 document.getElementById('userAvatar').classList.add('hidden');
             });
         } else {
             localStorage.removeItem('googleLoggedIn');
+            localStorage.removeItem('userProfile');
             updateSettingsUI(false);
         }
     };

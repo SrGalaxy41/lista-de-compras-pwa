@@ -127,13 +127,26 @@
         </div>
 
         <!-- FAB Scanner -->
-        <label for="scanInput" class="fixed bottom-20 right-6 bg-[#6A1B9A] text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all z-40 border-2 border-white">
+        <button id="startScanBtn" class="fixed bottom-20 right-6 bg-[#6A1B9A] text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all z-40 border-2 border-white">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 011.664.89l.812 1.22A2 2 0 0010.07 10H19a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <input type="file" id="scanInput" accept="image/*" capture="environment" class="hidden">
-        </label>
+        </button>
+
+        <!-- Camera Modal -->
+        <div id="cameraModal" class="hidden fixed inset-0 z-[150] bg-black flex flex-col">
+            <video id="videoFeed" autoplay playsinline class="flex-1 object-cover w-full h-full"></video>
+            <div class="absolute bottom-10 left-0 w-full flex justify-center items-center gap-8 px-4">
+                <button id="cancelCameraBtn" class="bg-white/20 backdrop-blur-md text-white p-4 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+                <button id="capturePhotoBtn" class="w-20 h-20 bg-white rounded-full border-4 border-gray-300 shadow-2xl active:scale-90 transition-transform flex items-center justify-center">
+                    <div class="w-16 h-16 bg-white border-2 border-gray-800 rounded-full"></div>
+                </button>
+                <div class="w-14"></div> <!-- Spacer for symmetry -->
+            </div>
+        </div>
 
         <!-- Bottom Navigation -->
         <nav class="fixed bottom-0 w-full max-w-md bg-white border-t border-gray-200 h-16 flex items-center justify-around pb-safe z-50 shadow-lg">
