@@ -22,9 +22,11 @@
             }
         }
     </script>
-    <!-- jsPDF & Tesseract -->
+    <!-- jsPDF, Tesseract & Cropper -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <!-- Google Identity & API -->
     <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
     <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()" async defer></script>
@@ -203,6 +205,57 @@
                         </div>
                     </div>
 
+                </div>
+            </div>
+        </div>
+
+        <!-- OCR: Cropper UI -->
+        <div id="cropperOverlay" class="hidden absolute inset-0 bg-black z-[120] flex flex-col">
+            <div class="flex-grow relative bg-gray-900">
+                <img id="imageToCrop" class="max-w-full hidden">
+            </div>
+            <div class="bg-black p-4 flex justify-between gap-4 pb-safe shrink-0">
+                <button id="cancelCropBtn" class="flex-1 py-3 bg-gray-800 text-white rounded-xl font-bold">Cancelar</button>
+                <button id="confirmCropBtn" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold">Cortar e Ler</button>
+            </div>
+        </div>
+
+        <!-- OCR: Progress UI -->
+        <div id="ocrProgressOverlay" class="hidden absolute inset-0 bg-black/60 z-[130] flex items-center justify-center backdrop-blur-sm p-4">
+            <div class="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl text-center space-y-4">
+                <h3 class="font-bold text-gray-800 text-lg">Lendo Etiqueta</h3>
+                <p class="text-sm text-gray-500" id="ocrStatusText">Analisando imagem...</p>
+                <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div id="ocrProgressBar" class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OCR: Confirmation Modal -->
+        <div id="ocrConfirmModal" class="hidden absolute inset-0 bg-black/40 z-[115] flex items-end justify-center backdrop-blur-sm transition-opacity">
+            <div class="bg-white w-full rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+                <div class="p-5 border-b bg-white flex justify-between items-center">
+                    <h2 class="font-bold text-xl text-gray-800">Confirmar Leitura</h2>
+                    <button id="closeOcrModalBtn" class="p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                    </button>
+                </div>
+                <div class="p-5 space-y-6 overflow-y-auto bg-gray-50 flex-grow">
+                    <div class="space-y-2">
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Produto Lido</label>
+                        <input type="text" id="ocrParsedName" class="w-full p-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary outline-none font-medium text-gray-800 shadow-sm">
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Selecione o Preço</label>
+                        <div id="ocrPriceOptions" class="grid grid-cols-2 gap-3">
+                            <!-- Dynamically filled with buttons -->
+                        </div>
+                    </div>
+
+                    <button id="ocrAddBtn" class="w-full bg-primary text-white py-3.5 rounded-xl font-bold shadow-md hover:bg-green-700 active:scale-[0.98] transition-all opacity-50 cursor-not-allowed" disabled>
+                        Adicionar à Lista
+                    </button>
                 </div>
             </div>
         </div>

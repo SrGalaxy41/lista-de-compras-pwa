@@ -455,6 +455,117 @@ const setupEventListeners = () => {
         }
     }, true);
 
+    // OCR Buttons
+    document.getElementById('cancelCropBtn').onclick = () => {
+        document.getElementById('cropperOverlay').classList.add('hidden');
+        if (cropperInstance) cropperInstance.destroy();
+    };
+    document.getElementById('confirmCropBtn').onclick = processCroppedImage;
+    
+    document.getElementById('closeOcrModalBtn').onclick = () => {
+        document.getElementById('ocrConfirmModal').classList.add('hidden');
+    };
+    document.getElementById('ocrAddBtn').onclick = confirmOcrAdd;
+
+    // Nav / Card 1 Actions
+    document.getElementById('loadTemplateBtn').onclick = () => showModal('Modelos', 'templates');
+    document.getElementById('historyBtn').onclick = () => showModal('Histórico', 'history');
+    document.getElementById('sharePdfBtn').onclick = generatePDF;
+    
+    document.getElementById('clearListBtn').onclick = () => {
+        if (confirm('Tem certeza que deseja limpar a lista atual?')) {
+            state.activeList = [];
+            saveState();
+            renderList();
+        }
+    };
+
+    const clearBudgetBtn = document.getElementById('clearBudgetBtn');
+    if (clearBudgetBtn) {
+        clearBudgetBtn.onclick = () => {
+            budgetInput.value = '0.00';
+            state.budget = 0;
+            saveState();
+            updateBudgetDisplay();
+        };
+    }
+
+    document.getElementById('closeModal').onclick = () => document.getElementById('modalOverlay').classList.add('hidden');
+
+    // Settings & Cloud Sync
+    document.getElementById('settingsBtn').onclick = () => document.getElementById('settingsModalOverlay').classList.remove('hidden');
+    document.getElementById('closeSettingsModal').onclick = () => document.getElementById('settingsModalOverlay').classList.add('hidden');
+    
+    document.getElementById('googleLoginBtn').onclick = () => {
+        if (googleAccessToken) { updateSettingsUI(true); return; }
+        tokenClient.requestAccessToken({prompt: 'consent'});
+    };
+    document.getElementById('googleLogoutBtn').onclick = () => {
+        if (googleAccessToken) {
+            google.accounts.oauth2.revoke(googleAccessToken, () => {
+                googleAccessToken = null;
+                updateSettingsUI(false);
+                document.getElementById('userAvatar').classList.add('hidden');
+            });
+        }
+    };
+    document.getElementById('backupBtn').onclick = backupToDrive;
+    document.getElementById('restoreBtn').onclick = restoreFromDrive;
+};
+
+const generatePDF = async () => {
+    if (state.activeList.length === 0) return showToast('Lista vazia!');
+    const doc = new jsPDF();
+    doc.setFontSize(20); doc.text('Lista de Compras', 20, 20);
+    let y = 40;
+    state.activeList.forEach(i => {
+        doc.text(`${i.checked ? '[X]' : '[ ]'} ${i.name} - ${i.qty}x R$ ${i.price.toFixed(2)}`, 20, y);
+        y += 10;
+    });
+    const blob = doc.output('blob');
+    const file = new File([blob], 'lista.pdf', { type: 'application/pdf' });
+    if (navigator.share) await navigator.share({ files: [file], title: 'Minha Lista' });
+    else doc.save('lista.pdf');
+};
+
+const showModal = (title, type) => {
+    const modal = document.getElementById('modalOverlay');
+    const content = document.getElementById('modalContent');
+    document.getElementById('modalTitle').textContent = title;
+    let html = '';
+    if (type === 'templates') {
+        html = state.templates.map((t, i) => `
+            <div class="flex justify-between items-center p-4 border-b">
+                <span class="font-medium">${t.name}</span>
+                <div class="flex gap-2">
+                    <button onclick="loadTemplate(${i})" class="text-primary font-bold">Abrir</button>
+                    <button onclick="deleteTemplate(${i})" class="text-danger">✕</button>
+                </div>
+            </div>`).join('') || '<p class="text-center py-10 text-gray-400">Nenhum modelo salvo.</p>';
+    } else {
+        html = state.history.map((h, i) => `
+            <div class="flex justify-between items-center p-4 border-b text-sm">
+                <div><div class="font-bold">${h.date}</div><div>R$ ${h.total.toFixed(2)}</div></div>
+                <button onclick="restoreHistory(${i})" class="text-primary font-bold">Restaurar</button>
+            </div>`).join('') || '<p class="text-center py-10 text-gray-400">Sem histórico.</p>';
+    }
+    content.innerHTML = html;
+    modal.classList.remove('hidden');
+};
+
+window.loadTemplate = (i) => {
+    state.activeList = [...state.activeList, ...JSON.parse(JSON.stringify(state.templates[i].items))];
+    saveState(); renderList(); document.getElementById('modalOverlay').classList.add('hidden');
+};
+window.deleteTemplate = (i) => { state.templates.splice(i,1); saveState(); showModal('Modelos', 'templates'); };
+window.restoreHistory = (i) => {
+    state.activeList = JSON.parse(JSON.stringify(state.history[i].items));
+    saveState(); renderList(); document.getElementById('modalOverlay').classList.add('hidden');
+};
+
+init();        }
+    }, true);
+
     // Card 1 Actions
     document.getElementById('loadTemplateBtn').onclick = () => showModal('Modelos', 'templates');
     document.getElementById('historyBtn').onclick = () => showModal('Histórico', 'history');
