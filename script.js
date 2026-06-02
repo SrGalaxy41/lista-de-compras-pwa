@@ -16,6 +16,7 @@ let googleAccessToken = null;
 let cropperInstance = null;
 let currentOcrSelectedPrice = null;
 let cameraStream = null;
+let currentStream = null;
 
 window.gapiLoaded = () => {
     gapi.load('client', async () => {
@@ -75,13 +76,20 @@ const updateSettingsUI = (isLoggedIn, profile = null) => {
 };
 
 const findBackupFile = async () => {
-    const response = await gapi.client.drive.files.list({
-        spaces: 'appDataFolder',
-        q: "name='comepouco_backup.json'",
-        fields: 'files(id)'
-    });
-    const files = response.result.files;
-    return files && files.length > 0 ? files[0].id : null;
+    try {
+        const url = "https://www.googleapis.com/drive/v3/files?q=name='comepouco_backup.json'&spaces=appDataFolder&fields=files(id)";
+        const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${googleAccessToken}` }
+        });
+        
+        if (res.status === 401) throw new Error('Unauthorized');
+        
+        const data = await res.json();
+        return data.files && data.files.length > 0 ? data.files[0].id : null;
+    } catch (err) {
+        if (err.message === 'Unauthorized') tokenClient.requestAccessToken({ prompt: '' });
+        throw err;
+    }
 };
 
 const backupToDrive = async () => {
@@ -91,6 +99,7 @@ const backupToDrive = async () => {
     try {
         const fileId = await findBackupFile();
         const backupData = JSON.stringify(state);
+        
         const metadata = {
             name: 'comepouco_backup.json',
             mimeType: 'application/json'
@@ -123,7 +132,15 @@ const backupToDrive = async () => {
             body: multipartRequestBody
         });
 
+        if (res.status === 401) {
+            tokenClient.requestAccessToken({ prompt: '' });
+            return;
+        }
+
         if (res.ok) {
+            state.lastSync = new Date().toLocaleString();
+            saveState();
+            updateSettingsUI(true);
             showToast('✅ Backup concluído!');
         } else {
             const errorData = await res.json();
@@ -132,7 +149,7 @@ const backupToDrive = async () => {
         }
     } catch (err) {
         console.error(err);
-        showToast('❌ Erro no backup');
+        if (err.message !== 'Unauthorized') showToast('❌ Erro no backup');
     }
 };
 
@@ -144,23 +161,29 @@ const restoreFromDrive = async () => {
         const fileId = await findBackupFile();
         if (!fileId) return showToast('❌ Nenhum backup encontrado');
 
-        const response = await gapi.client.drive.files.get({
-            fileId: fileId,
-            alt: 'media'
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: { Authorization: `Bearer ${googleAccessToken}` }
         });
 
-        const cloudData = response.result;
-        if (cloudData) {
+        if (res.status === 401) {
+            tokenClient.requestAccessToken({ prompt: '' });
+            return;
+        }
+
+        if (res.ok) {
+            const cloudData = await res.json();
             state = { ...state, ...cloudData };
             saveState();
             renderList();
             updateBudgetDisplay();
             updateCatalogDatalist();
-            showToast('✅ Dados restaurados!');
+            showToast('✅ Dados restaurados com sucesso!');
+        } else {
+            throw new Error('Falha no download');
         }
     } catch (err) {
         console.error(err);
-        showToast('❌ Erro ao restaurar');
+        if (err.message !== 'Unauthorized') showToast('❌ Erro ao restaurar');
     }
 };
 
@@ -249,6 +272,59 @@ const updateCatalogDatalist = () => {
 };
 
 // --- Logic ---
+
+async function getCameras() {
+    const selector = document.getElementById('cameraSelector');
+    selector.innerHTML = '';
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        
+        videoDevices.forEach((device, index) => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.text = device.label || `Câmera ${index + 1}`;
+            selector.appendChild(option);
+        });
+
+        if (videoDevices.length > 1) {
+            selector.classList.remove('hidden');
+        } else {
+            selector.classList.add('hidden');
+        }
+    } catch (err) {
+        console.error('Error enumerating cameras:', err);
+    }
+}
+
+async function startCamera(deviceId = null) {
+    const videoFeed = document.getElementById('videoFeed');
+    
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+    }
+
+    const constraints = {
+        video: deviceId 
+            ? { deviceId: { exact: deviceId }, width: { ideal: 1280 } }
+            : { facingMode: "environment", width: { ideal: 1280 } }
+    };
+
+    try {
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoFeed.srcObject = currentStream;
+        document.getElementById('cameraModal').classList.remove('hidden');
+        
+        // Re-enumerate to get labels if they were empty
+        const tracks = currentStream.getVideoTracks();
+        if (tracks.length > 0 && !tracks[0].label) {
+             await getCameras();
+        }
+    } catch (err) {
+        console.error('Camera Error:', err);
+        showToast('❌ Erro ao acessar câmera');
+    }
+}
 
 const processCroppedImage = async () => {
     if (!cropperInstance) return;
@@ -478,26 +554,23 @@ const setupEventListeners = () => {
     const videoFeed = document.getElementById('videoFeed');
     const capturePhotoBtn = document.getElementById('capturePhotoBtn');
     const cancelCameraBtn = document.getElementById('cancelCameraBtn');
+    const cameraSelector = document.getElementById('cameraSelector');
 
     const stopCamera = () => {
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(track => track.stop());
-            cameraStream = null;
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
         }
         cameraModal.classList.add('hidden');
     };
 
     startScanBtn.onclick = async () => {
-        try {
-            cameraStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1280 } } 
-            });
-            videoFeed.srcObject = cameraStream;
-            cameraModal.classList.remove('hidden');
-        } catch (err) {
-            console.error('Camera Error:', err);
-            showToast('❌ Erro ao acessar câmera');
-        }
+        await getCameras();
+        await startCamera();
+    };
+
+    cameraSelector.onchange = (e) => {
+        startCamera(e.target.value);
     };
 
     cancelCameraBtn.onclick = stopCamera;
