@@ -5,7 +5,7 @@
 const { jsPDF } = window.jspdf || {};
 
 // --- Google Drive Cloud Sync ---
-const GOOGLE_CLIENT_ID = 'SEU_CLIENT_ID_AQUI';
+const GOOGLE_CLIENT_ID = '387394082449-bgt5627hg91r9neruvdcjtf2o1h1q8el.apps.googleusercontent.com';
 const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata profile email';
 
 let gapiInited = false;
